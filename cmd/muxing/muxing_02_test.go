@@ -60,9 +60,12 @@ func TestMain(m *testing.M) {
 	os.Exit(testInit(m))
 }
 
-func getPage(method, url string, body io.Reader) (*http.Response, error) {
+func getPage(method, url string, body io.Reader, headers map[string]string) (*http.Response, error) {
 	path := baseURL + url
 	r, err := http.NewRequest(method, path, body)
+	for n, v := range headers {
+		r.Header.Add(n, v)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +78,7 @@ func getPage(method, url string, body io.Reader) (*http.Response, error) {
 }
 
 func Test_handleName_01(t *testing.T) {
-	data, err := getPage(http.MethodGet, "name/Tester", nil)
+	data, err := getPage(http.MethodGet, "name/Tester", nil, nil)
 	require.NoError(t, err)
 	b, err := ioutil.ReadAll(data.Body)
 	require.NoError(t, err)
@@ -83,15 +86,31 @@ func Test_handleName_01(t *testing.T) {
 }
 
 func Test_handleBad_01(t *testing.T) {
-	data, err := getPage(http.MethodGet, "bad", nil)
+	data, err := getPage(http.MethodGet, "bad", nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusInternalServerError, data.StatusCode)
 }
 
 func Test_handlePost_01(t *testing.T) {
-	data, err := getPage(http.MethodPost, "data", bytes.NewBuffer([]byte("my message")))
+	data, err := getPage(http.MethodPost, "data", bytes.NewBuffer([]byte("my message")), nil)
 	require.NoError(t, err)
 	b, err := ioutil.ReadAll(data.Body)
 	require.NoError(t, err)
 	assert.Equal(t, "I got message:\nmy message", string(b))
+}
+
+func Test_handleHeader(t *testing.T) {
+	headers := []struct {
+		in  map[string]string
+		out string
+	}{
+		{in: map[string]string{"a": "5", "b": "10"}, out: "15"},
+		{in: map[string]string{"a": "35", "b": "-100"}, out: "-65"},
+	}
+	for _, v := range headers {
+		data, err := getPage(http.MethodPost, "headers", bytes.NewBuffer([]byte("my message")), v.in)
+		require.NoError(t, err)
+		assert.Equal(t, v.out, data.Header.Get("a+b"))
+	}
+
 }
